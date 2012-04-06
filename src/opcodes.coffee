@@ -15,7 +15,7 @@ class root.Opcode
 
   take_args: (code_array, constant_pool) ->
     unless @execute
-      @_take_args?(code_array, constant_pool)
+      @_take_args? arguments...
       @execute = parse_cmd @
     else
       @args = (code_array.get_uint(1) for [0...@byte_count])
@@ -55,23 +55,28 @@ class root.InvokeOpcode extends root.Opcode
 class root.LoadConstantOpcode extends root.Opcode
   constructor: (name, params) ->
     params.out ?= if name is 'ldc2_w' then [2] else [1]
-    params.cmd ?=
-      """
-      var val = @constant.value;
-      if (@constant.type == 'String')
-        val = rs.string_redirect(val, @cls);
-      else if (@constant.type == 'class') {
-        var jvm_str = rs.get_obj(rs.string_redirect(val,@cls));
-        val = rs.class_lookup(c2t(rs.jvm2js_str(jvm_str)), true);
-      }
-      var out0 = val
-      """
     super name, params
 
   _take_args: (code_array, constant_pool) ->
     @cls = constant_pool.cls
     @constant_ref = code_array.get_uint @byte_count
     @constant = constant_pool.get @constant_ref
+    @cmd ?=
+      if @constant.type is 'String'
+        """
+        var val = #{@constant.value};
+        var out0 = rs.string_redirect(val, @cls);
+        """
+      else if @constant.type is 'class'
+        """
+        var val = #{@constant.value};
+        var jvm_str = rs.get_obj(rs.string_redirect(val,@cls));
+        var out0 = rs.class_lookup(c2t(rs.jvm2js_str(jvm_str)), true);
+        """
+      else if @constant.type is 'long'
+        "var out0 = @constant.value;"
+      else
+        "var out0 = #{@constant.value};"
 
 class root.BranchOpcode extends root.Opcode
   constructor: (name, params={}) ->
@@ -126,12 +131,12 @@ class root.IIncOpcode extends root.Opcode
 
 class root.LoadOpcode extends root.Opcode
   constructor: (name, params={}) ->
-    params.cmd ?= "var out0=rs.cl(@var_num);"
     params.out ?= if name.match /[ld]load/ then [2] else [1]
     super name, params
+    @var_num = parseInt @name[6]  # sneaky hack, works for name =~ /.load_\d/
   
   _take_args: (code_array) ->
-    @var_num = parseInt @name[6]  # sneaky hack, works for name =~ /.load_\d/
+    @cmd ?= "var out0=rs.cl(#{@var_num});"
 
 class root.LoadVarOpcode extends root.LoadOpcode
   _take_args: (code_array, constant_pool, @wide=false) ->
@@ -142,13 +147,14 @@ class root.LoadVarOpcode extends root.LoadOpcode
     else
       @byte_count = 1
       @var_num = code_array.get_uint 1
+    super code_array
 
 class root.StoreOpcode extends root.Opcode
   constructor: (name, params={}) ->
     super name, params
+    @var_num = parseInt @name[7]  # sneaky hack, works for name =~ /.store_\d/
 
   _take_args: (code_array) ->
-    @var_num = parseInt @name[7]  # sneaky hack, works for name =~ /.store_\d/
     @cmd =
       if @name.match /[ld]store/
         "rs.put_cl2(#{@var_num},rs.pop2())"
@@ -159,7 +165,7 @@ class root.StoreVarOpcode extends root.StoreOpcode
   constructor: (name, params) ->
     super name, params
 
-  take_args: (code_array, constant_pool, @wide=false) ->
+  _take_args: (code_array, constant_pool, @wide=false) ->
     if @wide
       @name += "_w"
       @byte_count = 3
@@ -167,6 +173,7 @@ class root.StoreVarOpcode extends root.StoreOpcode
     else
       @byte_count = 1
       @var_num = code_array.get_uint 1
+    super code_array
 
 class root.SwitchOpcode extends root.BranchOpcode
   constructor: (name, params) ->
@@ -241,7 +248,7 @@ class root.ArrayLoadOpcode extends root.Opcode
     super name, params
     @in = [1,1]
     @out = if @name.match /[ld]aload/ then [2] else [1]
-    @cmd =
+    @cmd ?=
       """
       var array = rs.get_obj(in0).array;
       var idx = in1;
@@ -356,11 +363,11 @@ root.opcodes = {
   51: new root.ArrayLoadOpcode 'baload'
   52: new root.ArrayLoadOpcode 'caload'
   53: new root.ArrayLoadOpcode 'saload'
-  54: new root.StoreVarOpcode 'istore', { execute: (rs) -> rs.put_cl(@var_num,rs.pop()) }
-  55: new root.StoreVarOpcode 'lstore', { execute: (rs) -> rs.put_cl2(@var_num,rs.pop2()) }
-  56: new root.StoreVarOpcode 'fstore', { execute: (rs) -> rs.put_cl(@var_num,rs.pop()) }
-  57: new root.StoreVarOpcode 'dstore', { execute: (rs) -> rs.put_cl2(@var_num,rs.pop2()) }
-  58: new root.StoreVarOpcode 'astore', { execute: (rs) -> rs.put_cl(@var_num,rs.pop()) }
+  54: new root.StoreVarOpcode 'istore'
+  55: new root.StoreVarOpcode 'lstore'
+  56: new root.StoreVarOpcode 'fstore'
+  57: new root.StoreVarOpcode 'dstore'
+  58: new root.StoreVarOpcode 'astore'
   59: new root.StoreOpcode 'istore_0'
   60: new root.StoreOpcode 'istore_1'
   61: new root.StoreOpcode 'istore_2'
