@@ -394,15 +394,15 @@ root.opcodes = {
   84: new root.ArrayStoreOpcode 'bastore', { in:[1,1,1] }
   85: new root.ArrayStoreOpcode 'castore', { in:[1,1,1] }
   86: new root.ArrayStoreOpcode 'sastore', { in:[1,1,1] }
-  87: new root.Opcode 'pop', { execute: (rs) -> rs.pop() }
-  88: new root.Opcode 'pop2', { execute: (rs) -> rs.pop2() }
-  89: new root.Opcode 'dup', { execute: (rs) -> v=rs.pop(); rs.push(v,v) }
-  90: new root.Opcode 'dup_x1', { execute: (rs) -> v1=rs.pop(); v2=rs.pop(); rs.push(v1,v2,v1) }
-  91: new root.Opcode 'dup_x2', {execute: (rs) -> [v1,v2,v3]=[rs.pop(),rs.pop(),rs.pop()];rs.push(v1,v3,v2,v1)}
-  92: new root.Opcode 'dup2', {execute: (rs) -> v1=rs.pop(); v2=rs.pop(); rs.push(v2,v1,v2,v1)}
-  93: new root.Opcode 'dup2_x1', {execute: (rs) -> [v1,v2,v3]=[rs.pop(),rs.pop(),rs.pop()];rs.push(v2,v1,v3,v2,v1)}
-  94: new root.Opcode 'dup2_x2', {execute: (rs) -> [v1,v2,v3,v4]=[rs.pop(),rs.pop(),rs.pop(),rs.pop()];rs.push(v2,v1,v4,v3,v2,v1)}
-  95: new root.Opcode 'swap', {execute: (rs) -> v2=rs.pop(); v1=rs.pop(); rs.push(v2,v1)}
+  87: new root.Opcode 'pop', { in: [1] }
+  88: new root.Opcode 'pop2', { in: [2] }
+  89: new root.Opcode 'dup', {in:[1],out:[1,1],cmd:"out0=out1=in0;"}
+  90: new root.Opcode 'dup_x1', {in:[1,1],out:[1,1,1],cmd:"out1=in0;out0=out2=in1;"}
+  91: new root.Opcode 'dup_x2', {in:[1,1,1],out:[1,1,1,1],cmd:"out0=out3=in2;out1=in0;out2=in1;"}
+  92: new root.Opcode 'dup2', {in:[1,1],out:[1,1,1,1],cmd:"out0=out2=in0;out1=out3=in1;"}
+  93: new root.Opcode 'dup2_x1', {in:[1,1,1],out:[1,1,1,1,1],cmd:"out0=out3=in1;out1=out4=in2;out2=in0"}
+  94: new root.Opcode 'dup2_x2', {in:[1,1,1,1],out:[1,1,1,1,1,1],cmd:"out0=out4=in2;out1=out5=in3;out2=in0;out3=in1;"}
+  95: new root.Opcode 'swap', {in:[1,1],out:[1,1],cmd:"out0=in1;out1=in0;"}
   96: new root.Opcode 'iadd', { execute: (rs) -> rs.push wrap_int(rs.pop()+rs.pop()) }
   97: new root.Opcode 'ladd', { execute: (rs) -> rs.push(rs.pop2().add(rs.pop2()), null) }
   98: new root.Opcode 'fadd', { execute: (rs) -> rs.push wrap_float(rs.pop()+rs.pop()) }
@@ -520,16 +520,17 @@ root.opcodes = {
 
 parse_cmd = (op) ->
   _in = op.in ? []
+  _out = op.out ? []
   fn_args = ['rs']
   prologue =
     (for idx in [_in.length-1..0] by -1
       size = _in[idx]
       if size == 1 then "var in#{idx} = rs.pop();"
       else "var in#{idx} = rs.pop2();").join ''
-  cmd = op.cmd.replace /@/g, 'this.'
+  prologue += ("var out#{i};" for i in [0..._out.length] by 1).join ''
+  cmd = (op.cmd?.replace /@/g, 'this.') ? ''
   lines = cmd.split('\n')
-  _out = op.out ? []
-  for idx in [_out.length-1..0] by -1
+  for idx in [0..._out.length] by 1
     size = _out[idx]
     if size == 1 then lines.push "rs.push(out#{idx})"
     else lines.push "rs.push(out#{idx}, null)"
