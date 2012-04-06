@@ -403,10 +403,10 @@ root.opcodes = {
   93: new root.Opcode 'dup2_x1', {in:[1,1,1],out:[1,1,1,1,1],cmd:"out0=out3=in1;out1=out4=in2;out2=in0"}
   94: new root.Opcode 'dup2_x2', {in:[1,1,1,1],out:[1,1,1,1,1,1],cmd:"out0=out4=in2;out1=out5=in3;out2=in0;out3=in1;"}
   95: new root.Opcode 'swap', {in:[1,1],out:[1,1],cmd:"out0=in1;out1=in0;"}
-  96: new root.Opcode 'iadd', { execute: (rs) -> rs.push wrap_int(rs.pop()+rs.pop()) }
-  97: new root.Opcode 'ladd', { execute: (rs) -> rs.push(rs.pop2().add(rs.pop2()), null) }
-  98: new root.Opcode 'fadd', { execute: (rs) -> rs.push wrap_float(rs.pop()+rs.pop()) }
-  99: new root.Opcode 'dadd', { execute: (rs) -> rs.push(rs.pop2()+rs.pop2(), null) }
+  96: new root.Opcode 'iadd', {in:[1,1],out:[1],cmd:'out0=wrap_int(in0+in1);'}
+  97: new root.Opcode 'ladd', {in:[2,2],out:[2],cmd:'out0=in0.add(in1);'}
+  98: new root.Opcode 'fadd', {in:[1,1],out:[1],cmd:'out0=in0+in1;'}
+  99: new root.Opcode 'dadd', {in:[2,2],out:[2],cmd:'out0=in0+in1;'}
   100: new root.Opcode 'isub', { execute: (rs) -> rs.push wrap_int(-rs.pop()+rs.pop()) }
   101: new root.Opcode 'lsub', { execute: (rs) -> rs.push(rs.pop2().negate().add(rs.pop2()), null) }
   102: new root.Opcode 'fsub', { execute: (rs) -> rs.push wrap_float(-rs.pop()+rs.pop()) }
