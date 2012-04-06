@@ -65,18 +65,18 @@ class root.LoadConstantOpcode extends root.Opcode
       if @constant.type is 'String'
         """
         var val = #{@constant.value};
-        var out0 = rs.string_redirect(val, @cls);
+        out0 = rs.string_redirect(val, @cls);
         """
       else if @constant.type is 'class'
         """
         var val = #{@constant.value};
         var jvm_str = rs.get_obj(rs.string_redirect(val,@cls));
-        var out0 = rs.class_lookup(c2t(rs.jvm2js_str(jvm_str)), true);
+        out0 = rs.class_lookup(c2t(rs.jvm2js_str(jvm_str)), true);
         """
       else if @constant.type is 'long'
-        "var out0 = @constant.value;"
+        "out0 = @constant.value;"
       else
-        "var out0 = #{@constant.value};"
+        "out0 = #{@constant.value};"
 
 class root.BranchOpcode extends root.Opcode
   constructor: (name, params={}) ->
@@ -110,7 +110,7 @@ class root.PushOpcode extends root.Opcode
 
   _take_args: (code_array) ->
     @value = code_array.get_int @byte_count
-    @cmd = "var out0=#{@value};"
+    @cmd = "out0=#{@value};"
 
 class root.IIncOpcode extends root.Opcode
   take_args: (code_array, constant_pool, @wide=false) ->
@@ -133,7 +133,7 @@ class root.LoadOpcode extends root.Opcode
     @var_num = parseInt @name[6]  # sneaky hack, works for name =~ /.load_\d/
   
   _take_args: (code_array) ->
-    @cmd ?= "var out0=rs.cl(#{@var_num});"
+    @cmd ?= "out0=rs.cl(#{@var_num});"
 
 class root.LoadVarOpcode extends root.LoadOpcode
   _take_args: (code_array, constant_pool, @wide=false) ->
@@ -249,7 +249,7 @@ class root.ArrayLoadOpcode extends root.Opcode
     var idx = in1;
     if (!(0 <= idx && idx < array.length))
       java_throw(rs, 'java/lang/ArrayIndexOutOfBoundsException', idx + " not in [0, " + array.length + ")")
-    var out0 = array[idx];
+    out0 = array[idx];
     """
 
 class root.ArrayStoreOpcode extends root.Opcode
@@ -308,21 +308,21 @@ jsr = (rs) ->
 # classfile
 root.opcodes = {
   0: new root.Opcode 'nop', { cmd:'' }
-  1: new root.Opcode 'aconst_null', { out:[1], cmd:'var out0=0;' }
-  2: new root.Opcode 'iconst_m1', { out:[1], cmd:'var out0=-1;' }
-  3: new root.Opcode 'iconst_0', { out:[1], cmd:'var out0=0;' }
-  4: new root.Opcode 'iconst_1', { out:[1], cmd:'var out0=1;' }
-  5: new root.Opcode 'iconst_2', { out:[1], cmd:'var out0=2;' }
-  6: new root.Opcode 'iconst_3', { out:[1], cmd:'var out0=3;' }
-  7: new root.Opcode 'iconst_4', { out:[1], cmd:'var out0=4;' }
-  8: new root.Opcode 'iconst_5', { out:[1], cmd:'var out0=5;' }
-  9: new root.Opcode 'lconst_0', { out:[2], cmd:'var out0=gLong.ZERO;' }
-  10: new root.Opcode 'lconst_1', { out:[2], cmd:'var out0=gLong.ONE;' }
-  11: new root.Opcode 'fconst_0', { out:[1], cmd:'var out0=0;' }
-  12: new root.Opcode 'fconst_1', { out:[1], cmd:'var out0=1;' }
-  13: new root.Opcode 'fconst_2', { out:[1], cmd:'var out0=2;' }
-  14: new root.Opcode 'dconst_0', { out:[2], cmd:'var out0=0;' }
-  15: new root.Opcode 'dconst_1', { out:[2], cmd:'var out0=1;' }
+  1: new root.Opcode 'aconst_null', { out:[1], cmd:'out0=0;' }
+  2: new root.Opcode 'iconst_m1', { out:[1], cmd:'out0=-1;' }
+  3: new root.Opcode 'iconst_0', { out:[1], cmd:'out0=0;' }
+  4: new root.Opcode 'iconst_1', { out:[1], cmd:'out0=1;' }
+  5: new root.Opcode 'iconst_2', { out:[1], cmd:'out0=2;' }
+  6: new root.Opcode 'iconst_3', { out:[1], cmd:'out0=3;' }
+  7: new root.Opcode 'iconst_4', { out:[1], cmd:'out0=4;' }
+  8: new root.Opcode 'iconst_5', { out:[1], cmd:'out0=5;' }
+  9: new root.Opcode 'lconst_0', { out:[2], cmd:'out0=gLong.ZERO;' }
+  10: new root.Opcode 'lconst_1', { out:[2], cmd:'out0=gLong.ONE;' }
+  11: new root.Opcode 'fconst_0', { out:[1], cmd:'out0=0;' }
+  12: new root.Opcode 'fconst_1', { out:[1], cmd:'out0=1;' }
+  13: new root.Opcode 'fconst_2', { out:[1], cmd:'out0=2;' }
+  14: new root.Opcode 'dconst_0', { out:[2], cmd:'out0=0;' }
+  15: new root.Opcode 'dconst_1', { out:[2], cmd:'out0=1;' }
   16: new root.PushOpcode 'bipush', { byte_count: 1 }
   17: new root.PushOpcode 'sipush', { byte_count: 2 }
   18: new root.LoadConstantOpcode 'ldc', { byte_count: 1 }
