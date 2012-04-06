@@ -13,8 +13,12 @@ class root.Opcode
     @execute ?= @_execute
     @byte_count = params.byte_count ? 0
 
-  take_args: (code_array) ->
-    @args = (code_array.get_uint(1) for [0...@byte_count])
+  take_args: (code_array, constant_pool) ->
+    unless @execute
+      @_take_args?(code_array, constant_pool)
+      @execute = parse_cmd @
+    else
+      @args = (code_array.get_uint(1) for [0...@byte_count])
 
 class root.FieldOpcode extends root.Opcode
   constructor: (name, params) ->
@@ -49,19 +53,25 @@ class root.InvokeOpcode extends root.Opcode
     @method_spec = constant_pool.get(@method_spec_ref).deref()
 
 class root.LoadConstantOpcode extends root.Opcode
-  take_args: (code_array, constant_pool) ->
+  constructor: (name, params) ->
+    params.out ?= if name is 'ldc2_w' then [2] else [1]
+    params.cmd ?=
+      """
+      var val = @constant.value;
+      if (@constant.type == 'String')
+        val = rs.string_redirect(val, @cls);
+      else if (@constant.type == 'class') {
+        var jvm_str = rs.get_obj(rs.string_redirect(val,@cls));
+        val = rs.class_lookup(c2t(rs.jvm2js_str(jvm_str)), true);
+      }
+      var out0 = val
+      """
+    super name, params
+
+  _take_args: (code_array, constant_pool) ->
     @cls = constant_pool.cls
     @constant_ref = code_array.get_uint @byte_count
     @constant = constant_pool.get @constant_ref
-
-  _execute: (rs) ->
-    val = @constant.value
-    val = rs.string_redirect(val, @cls) if @constant.type is 'String'
-    if @constant.type is 'class'
-      jvm_str = rs.get_obj(rs.string_redirect(val,@cls))
-      val = rs.class_lookup c2t(rs.jvm2js_str(jvm_str)), true
-    rs.push val
-    rs.push null if @name is 'ldc2_w'
 
 class root.BranchOpcode extends root.Opcode
   constructor: (name, params={}) ->
@@ -89,10 +99,13 @@ class root.BinaryBranchOpcode extends root.BranchOpcode
     }
 
 class root.PushOpcode extends root.Opcode
-  take_args: (code_array) ->
-    @value = code_array.get_int @byte_count
+  constructor: (name, params) ->
+    super name, params
+    @out = [1]
 
-  _execute: (rs) -> rs.push @value
+  _take_args: (code_array) ->
+    @value = code_array.get_int @byte_count
+    @cmd = "var out0=#{@value};"
 
 class root.IIncOpcode extends root.Opcode
   constructor: (name, params) ->
@@ -113,18 +126,15 @@ class root.IIncOpcode extends root.Opcode
 
 class root.LoadOpcode extends root.Opcode
   constructor: (name, params={}) ->
-    params.execute ?=
-      if name.match /[ld]load/
-        (rs) -> rs.push rs.cl(@var_num), null
-      else
-        (rs) -> rs.push rs.cl(@var_num)
+    params.cmd ?= "var out0=rs.cl(@var_num);"
+    params.out ?= if name.match /[ld]load/ then [2] else [1]
     super name, params
-
-  take_args: (code_array) ->
+  
+  _take_args: (code_array) ->
     @var_num = parseInt @name[6]  # sneaky hack, works for name =~ /.load_\d/
 
 class root.LoadVarOpcode extends root.LoadOpcode
-  take_args: (code_array, constant_pool, @wide=false) ->
+  _take_args: (code_array, constant_pool, @wide=false) ->
     if @wide
       @name += "_w"
       @byte_count = 3
@@ -135,15 +145,15 @@ class root.LoadVarOpcode extends root.LoadOpcode
 
 class root.StoreOpcode extends root.Opcode
   constructor: (name, params={}) ->
-    params.execute ?=
-      if name.match /[ld]store/
-        (rs) -> rs.put_cl2(@var_num,rs.pop2())
-      else
-        (rs) -> rs.put_cl(@var_num,rs.pop())
     super name, params
 
-  take_args: (code_array) ->
+  _take_args: (code_array) ->
     @var_num = parseInt @name[7]  # sneaky hack, works for name =~ /.store_\d/
+    @cmd =
+      if @name.match /[ld]store/
+        "rs.put_cl2(#{@var_num},rs.pop2())"
+      else
+        "rs.put_cl(#{@var_num},rs.pop())"
 
 class root.StoreVarOpcode extends root.StoreOpcode
   constructor: (name, params) ->
@@ -227,12 +237,18 @@ class root.MultiArrayOpcode extends root.Opcode
     rs.push init_arr 0
 
 class root.ArrayLoadOpcode extends root.Opcode
-  execute: (rs) ->
-    idx = rs.pop()
-    array = rs.get_obj(rs.pop()).array
-    java_throw rs, 'java/lang/ArrayIndexOutOfBoundsException', "#{idx} not in [0,#{array.length})" unless 0 <= idx < array.length
-    rs.push array[idx]
-    rs.push null if @name.match /[ld]aload/
+  constructor: (name, params) ->
+    super name, params
+    @in = [1,1]
+    @out = if @name.match /[ld]aload/ then [2] else [1]
+    @cmd =
+      """
+      var array = rs.get_obj(in0).array;
+      var idx = in1;
+      if (!(0 <= idx && idx < array.length))
+        java_throw(rs, 'java/lang/ArrayIndexOutOfBoundsException', idx + " not in [0, " + array.length + ")")
+      var out0 = array[idx];
+      """
 
 towards_zero = (a) ->
   Math[if a > 0 then 'floor' else 'ceil'](a)
@@ -286,22 +302,22 @@ jsr = (rs) ->
 # these objects are used as prototypes for the parsed instructions in the
 # classfile
 root.opcodes = {
-  0: new root.Opcode 'nop', { execute: -> }
-  1: new root.Opcode 'aconst_null', { execute: (rs) -> rs.push 0 }
-  2: new root.Opcode 'iconst_m1', { execute: (rs) -> rs.push -1 }
-  3: new root.Opcode 'iconst_0', { execute: (rs) -> rs.push 0 }
-  4: new root.Opcode 'iconst_1', { execute: (rs) -> rs.push 1 }
-  5: new root.Opcode 'iconst_2', { execute: (rs) -> rs.push 2 }
-  6: new root.Opcode 'iconst_3', { execute: (rs) -> rs.push 3 }
-  7: new root.Opcode 'iconst_4', { execute: (rs) -> rs.push 4 }
-  8: new root.Opcode 'iconst_5', { execute: (rs) -> rs.push 5 }
-  9: new root.Opcode 'lconst_0', { execute: (rs) -> rs.push gLong.ZERO, null }
-  10: new root.Opcode 'lconst_1', { execute: (rs) -> rs.push gLong.ONE, null }
-  11: new root.Opcode 'fconst_0', { execute: (rs) -> rs.push 0 }
-  12: new root.Opcode 'fconst_1', { execute: (rs) -> rs.push 1 }
-  13: new root.Opcode 'fconst_2', { execute: (rs) -> rs.push 2 }
-  14: new root.Opcode 'dconst_0', { execute: (rs) -> rs.push 0, null }
-  15: new root.Opcode 'dconst_1', { execute: (rs) -> rs.push 1, null }
+  0: new root.Opcode 'nop', { cmd:'' }
+  1: new root.Opcode 'aconst_null', { out:[1], cmd:'var out0=0;' }
+  2: new root.Opcode 'iconst_m1', { out:[1], cmd:'var out0=-1;' }
+  3: new root.Opcode 'iconst_0', { out:[1], cmd:'var out0=0;' }
+  4: new root.Opcode 'iconst_1', { out:[1], cmd:'var out0=1;' }
+  5: new root.Opcode 'iconst_2', { out:[1], cmd:'var out0=2;' }
+  6: new root.Opcode 'iconst_3', { out:[1], cmd:'var out0=3;' }
+  7: new root.Opcode 'iconst_4', { out:[1], cmd:'var out0=4;' }
+  8: new root.Opcode 'iconst_5', { out:[1], cmd:'var out0=5;' }
+  9: new root.Opcode 'lconst_0', { out:[2], cmd:'var out0=gLong.ZERO;' }
+  10: new root.Opcode 'lconst_1', { out:[2], cmd:'var out0=gLong.ONE;' }
+  11: new root.Opcode 'fconst_0', { out:[1], cmd:'var out0=0;' }
+  12: new root.Opcode 'fconst_1', { out:[1], cmd:'var out0=1;' }
+  13: new root.Opcode 'fconst_2', { out:[1], cmd:'var out0=2;' }
+  14: new root.Opcode 'dconst_0', { out:[2], cmd:'var out0=0;' }
+  15: new root.Opcode 'dconst_1', { out:[2], cmd:'var out0=1;' }
   16: new root.PushOpcode 'bipush', { byte_count: 1 }
   17: new root.PushOpcode 'sipush', { byte_count: 2 }
   18: new root.LoadConstantOpcode 'ldc', { byte_count: 1 }
@@ -495,3 +511,22 @@ root.opcodes = {
   200: new root.BranchOpcode 'goto_w', { byte_count: 4, execute: (rs) -> throw new BranchException rs.curr_pc() + @offset }
   201: new root.BranchOpcode 'jsr_w', { byte_count: 4, execute: jsr }
 }
+
+
+parse_cmd = (op) ->
+  _in = op.in ? []
+  fn_args = ['rs']
+  prologue =
+    (for idx in [_in.length-1..0] by -1
+      size = _in[idx]
+      if size == 1 then "var in#{idx} = rs.pop();"
+      else "var in#{idx} = rs.pop2();").join ''
+  cmd = op.cmd.replace /@/g, 'this.'
+  lines = cmd.split('\n')
+  _out = op.out ? []
+  for idx in [_out.length-1..0] by -1
+    size = _out[idx]
+    if size == 1 then lines.push "rs.push(out#{idx})"
+    else lines.push "rs.push(out#{idx}, null)"
+  cmd = lines.join '\n'
+  eval "(function (#{fn_args}) { #{prologue} #{cmd} })"
