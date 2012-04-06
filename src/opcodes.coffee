@@ -113,9 +113,6 @@ class root.PushOpcode extends root.Opcode
     @cmd = "var out0=#{@value};"
 
 class root.IIncOpcode extends root.Opcode
-  constructor: (name, params) ->
-    super name, params
-
   take_args: (code_array, constant_pool, @wide=false) ->
     if @wide
       @name += "_w"
@@ -162,9 +159,6 @@ class root.StoreOpcode extends root.Opcode
         "rs.put_cl(#{@var_num},rs.pop())"
 
 class root.StoreVarOpcode extends root.StoreOpcode
-  constructor: (name, params) ->
-    super name, params
-
   _take_args: (code_array, constant_pool, @wide=false) ->
     if @wide
       @name += "_w"
@@ -248,14 +242,18 @@ class root.ArrayLoadOpcode extends root.Opcode
     super name, params
     @in = [1,1]
     @out = if @name.match /[ld]aload/ then [2] else [1]
-    @cmd ?=
-      """
-      var array = rs.get_obj(in0).array;
-      var idx = in1;
-      if (!(0 <= idx && idx < array.length))
-        java_throw(rs, 'java/lang/ArrayIndexOutOfBoundsException', idx + " not in [0, " + array.length + ")")
-      var out0 = array[idx];
-      """
+
+  cmd:
+    """
+    var array = rs.get_obj(in0).array;
+    var idx = in1;
+    if (!(0 <= idx && idx < array.length))
+      java_throw(rs, 'java/lang/ArrayIndexOutOfBoundsException', idx + " not in [0, " + array.length + ")")
+    var out0 = array[idx];
+    """
+
+class root.ArrayStoreOpcode extends root.Opcode
+  cmd: "rs.get_obj(in0).array[in1]=in2;"
 
 towards_zero = (a) ->
   Math[if a > 0 then 'floor' else 'ceil'](a)
@@ -388,14 +386,14 @@ root.opcodes = {
   76: new root.StoreOpcode 'astore_1'
   77: new root.StoreOpcode 'astore_2'
   78: new root.StoreOpcode 'astore_3'
-  79: new root.Opcode 'iastore', {execute: (rs) -> v=rs.pop();i=rs.pop();rs.get_obj(rs.pop()).array[i]=v }
-  80: new root.Opcode 'lastore', {execute: (rs) -> v=rs.pop2();i=rs.pop();rs.get_obj(rs.pop()).array[i]=v }
-  81: new root.Opcode 'fastore', {execute: (rs) -> v=rs.pop();i=rs.pop();rs.get_obj(rs.pop()).array[i]=v }
-  82: new root.Opcode 'dastore', {execute: (rs) -> v=rs.pop2();i=rs.pop();rs.get_obj(rs.pop()).array[i]=v }
-  83: new root.Opcode 'aastore', {execute: (rs) -> v=rs.pop();i=rs.pop();rs.get_obj(rs.pop()).array[i]=v }
-  84: new root.Opcode 'bastore', {execute: (rs) -> v=rs.pop();i=rs.pop();rs.get_obj(rs.pop()).array[i]=v }
-  85: new root.Opcode 'castore', {execute: (rs) -> v=rs.pop();i=rs.pop();rs.get_obj(rs.pop()).array[i]=v }
-  86: new root.Opcode 'sastore', {execute: (rs) -> v=rs.pop();i=rs.pop();rs.get_obj(rs.pop()).array[i]=v }
+  79: new root.ArrayStoreOpcode 'iastore', { in:[1,1,1] }
+  80: new root.ArrayStoreOpcode 'lastore', { in:[1,1,2] }
+  81: new root.ArrayStoreOpcode 'fastore', { in:[1,1,1] }
+  82: new root.ArrayStoreOpcode 'dastore', { in:[1,1,2] }
+  83: new root.ArrayStoreOpcode 'aastore', { in:[1,1,1] }
+  84: new root.ArrayStoreOpcode 'bastore', { in:[1,1,1] }
+  85: new root.ArrayStoreOpcode 'castore', { in:[1,1,1] }
+  86: new root.ArrayStoreOpcode 'sastore', { in:[1,1,1] }
   87: new root.Opcode 'pop', { execute: (rs) -> rs.pop() }
   88: new root.Opcode 'pop2', { execute: (rs) -> rs.pop2() }
   89: new root.Opcode 'dup', { execute: (rs) -> v=rs.pop(); rs.push(v,v) }
