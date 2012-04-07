@@ -113,7 +113,7 @@ class root.PushOpcode extends root.Opcode
     @cmd = "out0=#{@value};"
 
 class root.IIncOpcode extends root.Opcode
-  take_args: (code_array, constant_pool, @wide=false) ->
+  _take_args: (code_array, constant_pool, @wide=false) ->
     if @wide
       @name += "_w"
       arg_size = 2
@@ -123,8 +123,7 @@ class root.IIncOpcode extends root.Opcode
       @byte_count = 2
     @index = code_array.get_uint arg_size
     @const = code_array.get_int arg_size
-
-  _execute: (rs) -> rs.put_cl(@index,rs.cl(@index)+@const)
+    @cmd = "rs.put_cl(#{@index},rs.cl(#{@index})+#{@const})"
 
 class root.LoadOpcode extends root.Opcode
   constructor: (name, params={}) ->
@@ -440,26 +439,26 @@ root.opcodes = {
   130: new root.Opcode 'ixor', {in:[1,1],out:[1],cmd:"out0=in0^in1;"}
   131: new root.Opcode 'lxor',{in:[2,2],out:[2],cmd:"out0=in0.xor(in1);"} 
   132: new root.IIncOpcode 'iinc'
-  133: new root.Opcode 'i2l', { execute: (rs) -> rs.push gLong.fromNumber(rs.pop()), null }
-  134: new root.Opcode 'i2f', { execute: (rs) -> }
-  135: new root.Opcode 'i2d', { execute: (rs) -> rs.push null }
-  136: new root.Opcode 'l2i', { execute: (rs) -> rs.push rs.pop2().toInt() }
-  137: new root.Opcode 'l2f', { execute: (rs) -> rs.push rs.pop2().toNumber() }
-  138: new root.Opcode 'l2d', { execute: (rs) -> rs.push rs.pop2().toNumber(), null }
-  139: new root.Opcode 'f2i', { execute: (rs) -> rs.push float2int rs.pop() }
-  140: new root.Opcode 'f2l', { execute: (rs) -> rs.push gLong.fromNumber(rs.pop()), null }
-  141: new root.Opcode 'f2d', { execute: (rs) -> rs.push null }
-  142: new root.Opcode 'd2i', { execute: (rs) -> rs.push float2int rs.pop2() }
-  143: new root.Opcode 'd2l', { execute: (rs) -> rs.push gLong.fromNumber(rs.pop2()), null }
-  144: new root.Opcode 'd2f', { execute: (rs) -> rs.push wrap_float rs.pop2() }
-  145: new root.Opcode 'i2b', { execute: (rs) -> rs.push truncate rs.pop(), 8 }
-  146: new root.Opcode 'i2c', { execute: (rs) -> rs.push truncate rs.pop(), 8 }
-  147: new root.Opcode 'i2s', { execute: (rs) -> rs.push truncate rs.pop(), 16 }
-  148: new root.Opcode 'lcmp', { execute: (rs) -> v2=rs.pop2(); rs.push rs.pop2().compare(v2) }
-  149: new root.Opcode 'fcmpl', { execute: (rs) -> v2=rs.pop(); rs.push util.cmp(rs.pop(),v2) ? -1 }
-  150: new root.Opcode 'fcmpg', { execute: (rs) -> v2=rs.pop(); rs.push util.cmp(rs.pop(),v2) ? 1 }
-  151: new root.Opcode 'dcmpl', { execute: (rs) -> v2=rs.pop2(); rs.push util.cmp(rs.pop2(),v2) ? -1 }
-  152: new root.Opcode 'dcmpg', { execute: (rs) -> v2=rs.pop2(); rs.push util.cmp(rs.pop2(),v2) ? 1 }
+  133: new root.Opcode 'i2l', {in:[1],out:[2],cmd:"out0=gLong.fromNumber(in0)"}
+  134: new root.Opcode 'i2f', {cmd:''}
+  135: new root.Opcode 'i2d', {in:[1],out:[2],cmd:"out0=in0;"}
+  136: new root.Opcode 'l2i', {in:[2],out:[1],cmd:"out0=in0.toInt();"}
+  137: new root.Opcode 'l2f', {in:[2],out:[1],cmd:"out0=in0.toNumber();"}
+  138: new root.Opcode 'l2d', {in:[2],out:[2],cmd:"out0=in0.toNumber();"}
+  139: new root.Opcode 'f2i', {in:[1],out:[1],cmd:"out0=float2int(in0);"}
+  140: new root.Opcode 'f2l', {in:[1],out:[2],cmd:"out0=gLong.fromNumber(in0);"}
+  141: new root.Opcode 'f2d', {in:[1],out:[2],cmd:"out0=in0;"}
+  142: new root.Opcode 'd2i', {in:[2],out:[1],cmd:"out0=float2int(in0);"}
+  143: new root.Opcode 'd2l', {in:[2],out:[2],cmd:"out0=gLong.fromNumber(in0);"}
+  144: new root.Opcode 'd2f', {in:[2],out:[1],cmd:"out0=wrap_float(in0);"}
+  145: new root.Opcode 'i2b', {in:[1],out:[1],cmd:"out0=truncate(in0,8);"}
+  146: new root.Opcode 'i2c', {in:[1],out:[1],cmd:"out0=truncate(in0,8);"}
+  147: new root.Opcode 'i2s', {in:[1],out:[1],cmd:"out0=truncate(in0,16);"}
+  148: new root.Opcode 'lcmp', {in:[2,2],out:[1],cmd:"out0=in0.compare(in1);"}
+  149: new root.Opcode 'fcmpl', {in:[1,1],out:[1],cmd:"var rv=util.cmp(in0,in1);out0=rv===null ? -1 : rv;"}
+  150: new root.Opcode 'fcmpg', {in:[1,1],out:[1],cmd:"var rv=util.cmp(in0,in1);out0=rv===null ? 1 : rv;"}
+  151: new root.Opcode 'dcmpl', {in:[2,2],out:[1],cmd:"var rv=util.cmp(in0,in1);out0=rv===null ? -1 : rv;"}
+  152: new root.Opcode 'dcmpg', {in:[2,2],out:[1],cmd:"var rv=util.cmp(in0,in1);out0=rv===null ? 1 : rv;"}
   153: new root.UnaryBranchOpcode 'ifeq', { cmp: (v) -> v == 0 }
   154: new root.UnaryBranchOpcode 'ifne', { cmp: (v) -> v != 0 }
   155: new root.UnaryBranchOpcode 'iflt', { cmp: (v) -> v < 0 }
