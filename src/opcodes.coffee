@@ -479,10 +479,18 @@ root.opcodes = {
   175: new root.Opcode 'dreturn', { execute: (rs) -> throw new ReturnException rs.curr_frame().stack[0], null }
   176: new root.Opcode 'areturn', { execute: (rs) -> throw new ReturnException rs.curr_frame().stack[0] }
   177: new root.Opcode 'return', { execute: (rs) -> throw new ReturnException }
-  178: new root.FieldOpcode 'getstatic', {execute: (rs)-> rs.push rs.static_get @field_spec; rs.push null if @field_spec.type in ['J','D']}
-  179: new root.FieldOpcode 'putstatic', {execute: (rs)-> rs.static_put @field_spec }
-  180: new root.FieldOpcode 'getfield', {execute: (rs)-> rs.heap_get @field_spec, rs.pop() }
-  181: new root.FieldOpcode 'putfield', {execute: (rs)-> rs.heap_put @field_spec }
+  178: new root.FieldOpcode 'getstatic', { compile:->
+    @out = if @field_spec.type in ['J','D'] then [2] else [1]
+    "out0=rs.static_get(#{JSON.stringify @field_spec});" }
+  179: new root.FieldOpcode 'putstatic', {compile:->
+    @in = if @field_spec.type in ['J','D'] then [2] else [1]
+    "rs.static_put(#{JSON.stringify @field_spec}, in0);" }
+  180: new root.FieldOpcode 'getfield', {in:[1],compile:->
+    @out = if @field_spec.type in 'JD' then [2] else [1]
+    "out0=rs.heap_get(#{JSON.stringify @field_spec},in0);"}
+  181: new root.FieldOpcode 'putfield', {compile:->
+    @in = if @field_spec.type in ['J','D'] then [1,2] else [1,1]
+    "rs.heap_put(#{JSON.stringify @field_spec},in0,in1);"}
   182: new root.InvokeOpcode 'invokevirtual',  { execute: (rs)-> rs.method_lookup(@method_spec).run(rs,true)}
   183: new root.InvokeOpcode 'invokespecial',  { execute: (rs)-> rs.method_lookup(@method_spec).run(rs)}
   184: new root.InvokeOpcode 'invokestatic',   { execute: (rs)-> rs.method_lookup(@method_spec).run(rs)}
@@ -513,6 +521,7 @@ root.opcodes = {
 
 
 root.parse_cmd = (op) ->
+  cmd = op.compile?() or ""
   _in = op.in ? []
   _out = op.out ? []
   fn_args = ['rs']
@@ -522,7 +531,6 @@ root.parse_cmd = (op) ->
       if size == 1 then "var in#{idx} = rs.pop();"
       else "var in#{idx} = rs.pop2();").join ''
   prologue += ("var out#{i};" for i in [0..._out.length] by 1).join ''
-  cmd = op.compile?() or ""
   cmd = (cmd.replace /@/g, 'this.') ? ''
   lines = cmd.split('\n')
   for idx in [0..._out.length] by 1

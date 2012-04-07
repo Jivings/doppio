@@ -269,14 +269,11 @@ native_methods =
             # we don't actually have nanosecond precision
             gLong.fromNumber((new Date).getTime()).multiply(gLong.fromNumber(1000000))
         o 'setIn0(L!/io/InputStream;)V', (rs) ->
-            rs.push rs.curr_frame().locals[0] # move oref to the stack for static_put
-            rs.static_put {class:'java/lang/System', name:'in'}
+            rs.static_put {class:'java/lang/System', name:'in'}, rs.curr_frame().locals[0]
         o 'setOut0(L!/io/PrintStream;)V', (rs) ->
-            rs.push rs.curr_frame().locals[0] # move oref to the stack for static_put
-            rs.static_put {class:'java/lang/System', name:'out'}
+            rs.static_put {class:'java/lang/System', name:'out'}, rs.curr_frame().locals[0]
         o 'setErr0(L!/io/PrintStream;)V', (rs) ->
-            rs.push rs.curr_frame().locals[0] # move oref to the stack for static_put
-            rs.static_put {class:'java/lang/System', name:'err'}
+            rs.static_put {class:'java/lang/System', name:'err'}, rs.curr_frame().locals[0]
       ]
       Thread: [
         o 'currentThread()L!/!/!;', (rs) ->  # essentially a singleton for the main thread mock object
@@ -285,8 +282,7 @@ native_methods =
               # have to run the private ThreadGroup constructor
               rs.method_lookup({class: 'java/lang/ThreadGroup', sig: '<init>()V'}).run(rs)
               rs.main_thread = rs.init_object 'java/lang/Thread', { priority: 1, group: g_ref, threadLocals: 0 }
-              rs.push gLong.ZERO, null  # set up for static_put
-              rs.static_put {class:'java/lang/Thread', name:'threadSeqNumber'}
+              rs.static_put {class:'java/lang/Thread', name:'threadSeqNumber'}, gLong.ZERO
             rs.main_thread
         o 'setPriority0(I)V', (rs) -> # NOP
         o 'holdsLock(L!/!/Object;)Z', -> true

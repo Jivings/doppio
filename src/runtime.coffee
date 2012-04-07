@@ -87,9 +87,8 @@ class root.RuntimeState
     @heap.length - 1
 
   heap_newarray: (type,len) -> @set_obj(c2t("[#{type}"),(0 for [0...len]))
-  heap_put: (field_spec) ->
-    val = if field_spec.type in ['J','D'] then @pop2() else @pop()
-    obj = @get_obj @pop()
+  heap_put: (field_spec, obj_ref, val) ->
+    obj = @get_obj obj_ref
     trace "setting #{field_spec.name} = #{val} on obj of type #{obj.type.toClassString()}"
     obj.fields[field_spec.name] = val
   heap_get: (field_spec, oref) ->
@@ -97,8 +96,7 @@ class root.RuntimeState
     name = field_spec.name
     obj.fields[name] ?= if field_spec.type is 'J' then gLong.ZERO else 0
     trace "getting #{name} from obj of type #{obj.type.toClassString()}: #{obj.fields[name]}"
-    @push obj.fields[name]
-    @push null if field_spec.type in ['J','D']
+    obj.fields[name]
 
   # static stuff
   static_get:(field_spec) ->
@@ -108,8 +106,7 @@ class root.RuntimeState
     val ?= if field_spec.type is 'J' then gLong.ZERO else 0
     trace "getting #{field_spec.name} from class #{field_spec.class}: #{val}"
     val
-  static_put: (field_spec) ->
-    val = if field_spec.type in ['J','D'] then @pop2() else @pop()
+  static_put: (field_spec, val) ->
     f = @field_lookup(field_spec)
     obj = @get_obj @class_lookup(f.class_type, true)
     obj.fields[f.name] = val
