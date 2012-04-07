@@ -5,7 +5,7 @@ util ?= require './util'
 opcodes ?= require './opcodes'
 
 # things assigned to root will be available outside this module
-root = this 
+root = this
 
 class ExceptionHandler
   parse: (bytes_array,constant_pool) ->
@@ -43,6 +43,7 @@ class Code
       throw "unknown opcode code: #{c}" unless opcodes.opcodes[c]?
       op = Object.create opcodes.opcodes[c]
       op.take_args bytes_array, constant_pool, wide
+      op.execute ?= opcodes.parse_cmd op
       rv[op_index] = op
     return rv
 
@@ -71,7 +72,7 @@ class StackMapTable
       if 0 <= frame_type < 64
         { frame_type: frame_type, frame_name: 'same' }
       else if 64 <= frame_type < 128
-        { 
+        {
           frame_type: frame_type
           frame_name: 'same_locals_1_stack_item'
           stack: parse_verification_type_info()
