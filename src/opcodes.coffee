@@ -62,18 +62,18 @@ class root.LoadConstantOpcode extends root.Opcode
       if @constant.type is 'String'
         """
         var val = #{@constant.value};
-        out0 = rs.string_redirect(val, @cls);
+        $out[0] = rs.string_redirect(val, @cls);
         """
       else if @constant.type is 'class'
         """
         var val = #{@constant.value};
         var jvm_str = rs.get_obj(rs.string_redirect(val,@cls));
-        out0 = rs.class_lookup(c2t(rs.jvm2js_str(jvm_str)), true);
+        $out[0] = rs.class_lookup(c2t(rs.jvm2js_str(jvm_str)), true);
         """
       else if @constant.type is 'long'
-        "out0 = @constant.value;"
+        "$out[0] = @constant.value;"
       else
-        "out0 = #{@constant.value};"
+        "$out[0] = #{@constant.value};"
 
 class root.BranchOpcode extends root.Opcode
   constructor: (name, params={}) ->
@@ -108,7 +108,7 @@ class root.PushOpcode extends root.Opcode
   take_args: (code_array) ->
     @value = code_array.get_int @byte_count
 
-  compile: -> "out0=#{@value};"
+  compile: -> "$out[0]=#{@value};"
 
 class root.IIncOpcode extends root.Opcode
   take_args: (code_array, constant_pool, @wide=false) ->
@@ -130,7 +130,7 @@ class root.LoadOpcode extends root.Opcode
     super name, params
     @var_num = parseInt @name[6]  # sneaky hack, works for name =~ /.load_\d/
 
-  compile: -> "out0=rs.cl(#{@var_num});"
+  compile: -> "$out[0]=rs.cl(#{@var_num});"
 
 class root.LoadVarOpcode extends root.LoadOpcode
   take_args: (code_array, constant_pool, @wide=false) ->
@@ -223,13 +223,24 @@ class root.MultiArrayOpcode extends root.Opcode
     @class = constant_pool.get(@class_ref).deref()
     @dim = code_array.get_uint 1
 
-  execute: (rs) ->
-    counts = rs.curr_frame().stack.splice(rs.length-@dim)
-    init_arr = (curr_dim) =>
-      return 0 if curr_dim == @dim
-      typestr = @class[curr_dim..]
-      rs.init_object typestr, (init_arr(curr_dim+1) for [0...counts[curr_dim]])
-    rs.push init_arr 0
+  out:[1]
+
+  compile: ->
+    @in = (1 for i in [0...@dim] by 1)
+    """
+    var init_arr = function(curr_dim) {
+      if (curr_dim == #{@dim}) return 0;
+      var typestr = '#{@class}'.slice(curr_dim);
+      return rs.init_object(typestr, (function() {
+        var results = [];
+        for (var i = 0; i < $in[curr_dim]; i++) {
+          results.push(init_arr(curr_dim + 1));
+        }
+        return results;
+      })());
+    };
+    $out[0]=init_arr(0);
+    """
 
 class root.ArrayLoadOpcode extends root.Opcode
   constructor: (name, params) ->
@@ -239,15 +250,15 @@ class root.ArrayLoadOpcode extends root.Opcode
 
   compile: ->
     """
-    var array = rs.get_obj(in0).array;
-    var idx = in1;
+    var array = rs.get_obj($in[0]).array;
+    var idx = $in[1];
     if (!(0 <= idx && idx < array.length))
       java_throw(rs, 'java/lang/ArrayIndexOutOfBoundsException', idx + " not in [0, " + array.length + ")")
-    out0 = array[idx];
+    $out[0] = array[idx];
     """
 
 class root.ArrayStoreOpcode extends root.Opcode
-  compile: -> "rs.get_obj(in0).array[in1]=in2;"
+  compile: -> "rs.get_obj($in[0]).array[$in[1]]=$in[2];"
 
 towards_zero = (a) ->
   Math[if a > 0 then 'floor' else 'ceil'](a)
@@ -302,21 +313,21 @@ jsr = (rs) ->
 # classfile
 root.opcodes = {
   0: new root.Opcode 'nop', { compile:->'' }
-  1: new root.Opcode 'aconst_null', { out:[1], compile:->'out0=0;' }
-  2: new root.Opcode 'iconst_m1', { out:[1], compile:->'out0=-1;' }
-  3: new root.Opcode 'iconst_0', { out:[1], compile:->'out0=0;' }
-  4: new root.Opcode 'iconst_1', { out:[1], compile:->'out0=1;' }
-  5: new root.Opcode 'iconst_2', { out:[1], compile:->'out0=2;' }
-  6: new root.Opcode 'iconst_3', { out:[1], compile:->'out0=3;' }
-  7: new root.Opcode 'iconst_4', { out:[1], compile:->'out0=4;' }
-  8: new root.Opcode 'iconst_5', { out:[1], compile:->'out0=5;' }
-  9: new root.Opcode 'lconst_0', { out:[2], compile:->'out0=gLong.ZERO;' }
-  10: new root.Opcode 'lconst_1', { out:[2], compile:->'out0=gLong.ONE;' }
-  11: new root.Opcode 'fconst_0', { out:[1], compile:->'out0=0;' }
-  12: new root.Opcode 'fconst_1', { out:[1], compile:->'out0=1;' }
-  13: new root.Opcode 'fconst_2', { out:[1], compile:->'out0=2;' }
-  14: new root.Opcode 'dconst_0', { out:[2], compile:->'out0=0;' }
-  15: new root.Opcode 'dconst_1', { out:[2], compile:->'out0=1;' }
+  1: new root.Opcode 'aconst_null', { out:[1], compile:->'$out[0]=0;' }
+  2: new root.Opcode 'iconst_m1', { out:[1], compile:->'$out[0]=-1;' }
+  3: new root.Opcode 'iconst_0', { out:[1], compile:->'$out[0]=0;' }
+  4: new root.Opcode 'iconst_1', { out:[1], compile:->'$out[0]=1;' }
+  5: new root.Opcode 'iconst_2', { out:[1], compile:->'$out[0]=2;' }
+  6: new root.Opcode 'iconst_3', { out:[1], compile:->'$out[0]=3;' }
+  7: new root.Opcode 'iconst_4', { out:[1], compile:->'$out[0]=4;' }
+  8: new root.Opcode 'iconst_5', { out:[1], compile:->'$out[0]=5;' }
+  9: new root.Opcode 'lconst_0', { out:[2], compile:->'$out[0]=gLong.ZERO;' }
+  10: new root.Opcode 'lconst_1', { out:[2], compile:->'$out[0]=gLong.ONE;' }
+  11: new root.Opcode 'fconst_0', { out:[1], compile:->'$out[0]=0;' }
+  12: new root.Opcode 'fconst_1', { out:[1], compile:->'$out[0]=1;' }
+  13: new root.Opcode 'fconst_2', { out:[1], compile:->'$out[0]=2;' }
+  14: new root.Opcode 'dconst_0', { out:[2], compile:->'$out[0]=0;' }
+  15: new root.Opcode 'dconst_1', { out:[2], compile:->'$out[0]=1;' }
   16: new root.PushOpcode 'bipush', { byte_count: 1 }
   17: new root.PushOpcode 'sipush', { byte_count: 2 }
   18: new root.LoadConstantOpcode 'ldc', { byte_count: 1 }
@@ -390,70 +401,70 @@ root.opcodes = {
   86: new root.ArrayStoreOpcode 'sastore', { in:[1,1,1] }
   87: new root.Opcode 'pop', { in: [1] }
   88: new root.Opcode 'pop2', { in: [2] }
-  89: new root.Opcode 'dup', {in:[1],out:[1,1],compile:->"out0=out1=in0;"}
-  90: new root.Opcode 'dup_x1', {in:[1,1],out:[1,1,1],compile:->"out1=in0;out0=out2=in1;"}
-  91: new root.Opcode 'dup_x2', {in:[1,1,1],out:[1,1,1,1],compile:->"out0=out3=in2;out1=in0;out2=in1;"}
-  92: new root.Opcode 'dup2', {in:[1,1],out:[1,1,1,1],compile:->"out0=out2=in0;out1=out3=in1;"}
-  93: new root.Opcode 'dup2_x1', {in:[1,1,1],out:[1,1,1,1,1],compile:->"out0=out3=in1;out1=out4=in2;out2=in0;"}
-  94: new root.Opcode 'dup2_x2', {in:[1,1,1,1],out:[1,1,1,1,1,1],compile:->"out0=out4=in2;out1=out5=in3;out2=in0;out3=in1;"}
-  95: new root.Opcode 'swap', {in:[1,1],out:[1,1],compile:->"out0=in1;out1=in0;"}
-  96: new root.Opcode 'iadd', {in:[1,1],out:[1],compile:->'out0=wrap_int(in0+in1);'}
-  97: new root.Opcode 'ladd', {in:[2,2],out:[2],compile:->'out0=in0.add(in1);'}
-  98: new root.Opcode 'fadd', {in:[1,1],out:[1],compile:->'out0=wrap_float(in0+in1);'}
-  99: new root.Opcode 'dadd', {in:[2,2],out:[2],compile:->'out0=in0+in1;'}
-  100: new root.Opcode 'isub', {in:[1,1],out:[1],compile:->"out0=wrap_int(in0-in1);"}
-  101: new root.Opcode 'lsub', {in:[2,2],out:[2],compile:->'out0=in0.add(in1.negate());'}
-  102: new root.Opcode 'fsub', {in:[1,1],out:[1],compile:->"out0=wrap_float(in0-in1);"}
-  103: new root.Opcode 'dsub', {in:[2,2],out:[2],compile:->"out0=in0-in1;"}
-  104: new root.Opcode 'imul', {in:[1,1],out:[1],compile:->"out0=gLong.fromInt(in0).multiply(gLong.fromInt(in1)).toInt();"}
-  105: new root.Opcode 'lmul', {in:[2,2],out:[2],compile:->"out0=in0.multiply(in1);"}
-  106: new root.Opcode 'fmul', {in:[1,1],out:[1],compile:->"out0=wrap_float(in0*in1);"}
-  107: new root.Opcode 'dmul', {in:[2,2],out:[2],compile:->"out0=in0*in1;"}
-  108: new root.Opcode 'idiv', {in:[1,1],out:[1],compile:->"out0=int_div(rs,in0,in1);"}
-  109: new root.Opcode 'ldiv', {in:[2,2],out:[2],compile:->"out0=long_div(rs,in0,in1);"}
-  110: new root.Opcode 'fdiv', {in:[1,1],out:[1],compile:->"out0=wrap_float(in0/in1);"}
-  111: new root.Opcode 'ddiv', {in:[2,2],out:[2],compile:->"out0=in0/in1;"}
-  112: new root.Opcode 'irem', {in:[1,1],out:[1],compile:->"out0=int_mod(rs,in0,in1);"}
-  113: new root.Opcode 'lrem', {in:[2,2],out:[2],compile:->"out0=long_mod(rs,in0,in1);"}
-  114: new root.Opcode 'frem', {in:[1,1],out:[1],compile:->"out0=in0%in1;"}
-  115: new root.Opcode 'drem', {in:[2,2],out:[2],compile:->"out0=in0%in1;"}
-  116: new root.Opcode 'ineg', {in:[1],out:[1],compile:->"out0=-in0;"}
-  117: new root.Opcode 'lneg', {in:[2],out:[2],compile:->"out0=in0.negate();"}
-  118: new root.Opcode 'fneg', {in:[1],out:[1],compile:->"out0=-in0;"}
-  119: new root.Opcode 'dneg', {in:[2],out:[2],compile:->"out0=-in0;"}
-  120: new root.Opcode 'ishl', {in:[1,1],out:[1],compile:->"out0=in0<<(in1&0x1F);"}
-  121: new root.Opcode 'lshl', {in:[2,1],out:[2],compile:->"out0=in0.shiftLeft(gLong.fromInt(in1&0x3F));"}
-  122: new root.Opcode 'ishr', {in:[1,1],out:[1],compile:->"out0=in0>>in1;"}
-  123: new root.Opcode 'lshr', {in:[2,1],out:[2],compile:->"out0=in0.shiftRight(gLong.fromInt(in1&0x3F));"}
-  124: new root.Opcode 'iushr', {in:[1,1],out:[1],compile:->"out0=in0>>>in1;"}
-  125: new root.Opcode 'lushr', {in:[2,1],out:[2],compile:->"out0=in0.shiftRightUnsigned(gLong.fromInt(in1&0x3F));"}
-  126: new root.Opcode 'iand', {in:[1,1],out:[1],compile:->"out0=in0&in1;"}
-  127: new root.Opcode 'land', {in:[2,2],out:[2],compile:->"out0=in0.and(in1);"}
-  128: new root.Opcode 'ior', {in:[1,1],out:[1],compile:->"out0=in0|in1;"}
-  129: new root.Opcode 'lor', {in:[2,2],out:[2],compile:->"out0=in0.or(in1);"}
-  130: new root.Opcode 'ixor', {in:[1,1],out:[1],compile:->"out0=in0^in1;"}
-  131: new root.Opcode 'lxor',{in:[2,2],out:[2],compile:->"out0=in0.xor(in1);"}
+  89: new root.Opcode 'dup', {in:[1],out:[1,1],compile:->"$out[0]=$out[1]=$in[0];"}
+  90: new root.Opcode 'dup_x1', {in:[1,1],out:[1,1,1],compile:->"$out[1]=$in[0];$out[0]=$out[2]=$in[1];"}
+  91: new root.Opcode 'dup_x2', {in:[1,1,1],out:[1,1,1,1],compile:->"$out[0]=$out[3]=$in[2];$out[1]=$in[0];$out[2]=$in[1];"}
+  92: new root.Opcode 'dup2', {in:[1,1],out:[1,1,1,1],compile:->"$out[0]=$out[2]=$in[0];$out[1]=$out[3]=$in[1];"}
+  93: new root.Opcode 'dup2_x1', {in:[1,1,1],out:[1,1,1,1,1],compile:->"$out[0]=$out[3]=$in[1];$out[1]=$out[4]=$in[2];$out[2]=$in[0];"}
+  94: new root.Opcode 'dup2_x2', {in:[1,1,1,1],out:[1,1,1,1,1,1],compile:->"$out[0]=$out[4]=$in[2];$out[1]=$out[5]=$in[3];$out[2]=$in[0];$out[3]=$in[1];"}
+  95: new root.Opcode 'swap', {in:[1,1],out:[1,1],compile:->"$out[0]=$in[1];$out[1]=$in[0];"}
+  96: new root.Opcode 'iadd', {in:[1,1],out:[1],compile:->'$out[0]=wrap_int($in[0]+$in[1]);'}
+  97: new root.Opcode 'ladd', {in:[2,2],out:[2],compile:->'$out[0]=$in[0].add($in[1]);'}
+  98: new root.Opcode 'fadd', {in:[1,1],out:[1],compile:->'$out[0]=wrap_float($in[0]+$in[1]);'}
+  99: new root.Opcode 'dadd', {in:[2,2],out:[2],compile:->'$out[0]=$in[0]+$in[1];'}
+  100: new root.Opcode 'isub', {in:[1,1],out:[1],compile:->"$out[0]=wrap_int($in[0]-$in[1]);"}
+  101: new root.Opcode 'lsub', {in:[2,2],out:[2],compile:->'$out[0]=$in[0].add($in[1].negate());'}
+  102: new root.Opcode 'fsub', {in:[1,1],out:[1],compile:->"$out[0]=wrap_float($in[0]-$in[1]);"}
+  103: new root.Opcode 'dsub', {in:[2,2],out:[2],compile:->"$out[0]=$in[0]-$in[1];"}
+  104: new root.Opcode 'imul', {in:[1,1],out:[1],compile:->"$out[0]=gLong.fromInt($in[0]).multiply(gLong.fromInt($in[1])).toInt();"}
+  105: new root.Opcode 'lmul', {in:[2,2],out:[2],compile:->"$out[0]=$in[0].multiply($in[1]);"}
+  106: new root.Opcode 'fmul', {in:[1,1],out:[1],compile:->"$out[0]=wrap_float($in[0]*$in[1]);"}
+  107: new root.Opcode 'dmul', {in:[2,2],out:[2],compile:->"$out[0]=$in[0]*$in[1];"}
+  108: new root.Opcode 'idiv', {in:[1,1],out:[1],compile:->"$out[0]=int_div(rs,$in[0],$in[1]);"}
+  109: new root.Opcode 'ldiv', {in:[2,2],out:[2],compile:->"$out[0]=long_div(rs,$in[0],$in[1]);"}
+  110: new root.Opcode 'fdiv', {in:[1,1],out:[1],compile:->"$out[0]=wrap_float($in[0]/$in[1]);"}
+  111: new root.Opcode 'ddiv', {in:[2,2],out:[2],compile:->"$out[0]=$in[0]/$in[1];"}
+  112: new root.Opcode 'irem', {in:[1,1],out:[1],compile:->"$out[0]=int_mod(rs,$in[0],$in[1]);"}
+  113: new root.Opcode 'lrem', {in:[2,2],out:[2],compile:->"$out[0]=long_mod(rs,$in[0],$in[1]);"}
+  114: new root.Opcode 'frem', {in:[1,1],out:[1],compile:->"$out[0]=$in[0]%$in[1];"}
+  115: new root.Opcode 'drem', {in:[2,2],out:[2],compile:->"$out[0]=$in[0]%$in[1];"}
+  116: new root.Opcode 'ineg', {in:[1],out:[1],compile:->"$out[0]=-$in[0];"}
+  117: new root.Opcode 'lneg', {in:[2],out:[2],compile:->"$out[0]=$in[0].negate();"}
+  118: new root.Opcode 'fneg', {in:[1],out:[1],compile:->"$out[0]=-$in[0];"}
+  119: new root.Opcode 'dneg', {in:[2],out:[2],compile:->"$out[0]=-$in[0];"}
+  120: new root.Opcode 'ishl', {in:[1,1],out:[1],compile:->"$out[0]=$in[0]<<($in[1]&0x1F);"}
+  121: new root.Opcode 'lshl', {in:[2,1],out:[2],compile:->"$out[0]=$in[0].shiftLeft(gLong.fromInt($in[1]&0x3F));"}
+  122: new root.Opcode 'ishr', {in:[1,1],out:[1],compile:->"$out[0]=$in[0]>>$in[1];"}
+  123: new root.Opcode 'lshr', {in:[2,1],out:[2],compile:->"$out[0]=$in[0].shiftRight(gLong.fromInt($in[1]&0x3F));"}
+  124: new root.Opcode 'iushr', {in:[1,1],out:[1],compile:->"$out[0]=$in[0]>>>$in[1];"}
+  125: new root.Opcode 'lushr', {in:[2,1],out:[2],compile:->"$out[0]=$in[0].shiftRightUnsigned(gLong.fromInt($in[1]&0x3F));"}
+  126: new root.Opcode 'iand', {in:[1,1],out:[1],compile:->"$out[0]=$in[0]&$in[1];"}
+  127: new root.Opcode 'land', {in:[2,2],out:[2],compile:->"$out[0]=$in[0].and($in[1]);"}
+  128: new root.Opcode 'ior', {in:[1,1],out:[1],compile:->"$out[0]=$in[0]|$in[1];"}
+  129: new root.Opcode 'lor', {in:[2,2],out:[2],compile:->"$out[0]=$in[0].or($in[1]);"}
+  130: new root.Opcode 'ixor', {in:[1,1],out:[1],compile:->"$out[0]=$in[0]^$in[1];"}
+  131: new root.Opcode 'lxor',{in:[2,2],out:[2],compile:->"$out[0]=$in[0].xor($in[1]);"}
   132: new root.IIncOpcode 'iinc'
-  133: new root.Opcode 'i2l', {in:[1],out:[2],compile:->"out0=gLong.fromNumber(in0)"}
+  133: new root.Opcode 'i2l', {in:[1],out:[2],compile:->"$out[0]=gLong.fromNumber($in[0])"}
   134: new root.Opcode 'i2f', {compile:->''}
-  135: new root.Opcode 'i2d', {in:[1],out:[2],compile:->"out0=in0;"}
-  136: new root.Opcode 'l2i', {in:[2],out:[1],compile:->"out0=in0.toInt();"}
-  137: new root.Opcode 'l2f', {in:[2],out:[1],compile:->"out0=in0.toNumber();"}
-  138: new root.Opcode 'l2d', {in:[2],out:[2],compile:->"out0=in0.toNumber();"}
-  139: new root.Opcode 'f2i', {in:[1],out:[1],compile:->"out0=float2int(in0);"}
-  140: new root.Opcode 'f2l', {in:[1],out:[2],compile:->"out0=gLong.fromNumber(in0);"}
-  141: new root.Opcode 'f2d', {in:[1],out:[2],compile:->"out0=in0;"}
-  142: new root.Opcode 'd2i', {in:[2],out:[1],compile:->"out0=float2int(in0);"}
-  143: new root.Opcode 'd2l', {in:[2],out:[2],compile:->"out0=gLong.fromNumber(in0);"}
-  144: new root.Opcode 'd2f', {in:[2],out:[1],compile:->"out0=wrap_float(in0);"}
-  145: new root.Opcode 'i2b', {in:[1],out:[1],compile:->"out0=truncate(in0,8);"}
-  146: new root.Opcode 'i2c', {in:[1],out:[1],compile:->"out0=truncate(in0,8);"}
-  147: new root.Opcode 'i2s', {in:[1],out:[1],compile:->"out0=truncate(in0,16);"}
-  148: new root.Opcode 'lcmp', {in:[2,2],out:[1],compile:->"out0=in0.compare(in1);"}
-  149: new root.Opcode 'fcmpl', {in:[1,1],out:[1],compile:->"var rv=util.cmp(in0,in1);out0=rv===null ? -1 : rv;"}
-  150: new root.Opcode 'fcmpg', {in:[1,1],out:[1],compile:->"var rv=util.cmp(in0,in1);out0=rv===null ? 1 : rv;"}
-  151: new root.Opcode 'dcmpl', {in:[2,2],out:[1],compile:->"var rv=util.cmp(in0,in1);out0=rv===null ? -1 : rv;"}
-  152: new root.Opcode 'dcmpg', {in:[2,2],out:[1],compile:->"var rv=util.cmp(in0,in1);out0=rv===null ? 1 : rv;"}
+  135: new root.Opcode 'i2d', {in:[1],out:[2],compile:->"$out[0]=$in[0];"}
+  136: new root.Opcode 'l2i', {in:[2],out:[1],compile:->"$out[0]=$in[0].toInt();"}
+  137: new root.Opcode 'l2f', {in:[2],out:[1],compile:->"$out[0]=$in[0].toNumber();"}
+  138: new root.Opcode 'l2d', {in:[2],out:[2],compile:->"$out[0]=$in[0].toNumber();"}
+  139: new root.Opcode 'f2i', {in:[1],out:[1],compile:->"$out[0]=float2int($in[0]);"}
+  140: new root.Opcode 'f2l', {in:[1],out:[2],compile:->"$out[0]=gLong.fromNumber($in[0]);"}
+  141: new root.Opcode 'f2d', {in:[1],out:[2],compile:->"$out[0]=$in[0];"}
+  142: new root.Opcode 'd2i', {in:[2],out:[1],compile:->"$out[0]=float2int($in[0]);"}
+  143: new root.Opcode 'd2l', {in:[2],out:[2],compile:->"$out[0]=gLong.fromNumber($in[0]);"}
+  144: new root.Opcode 'd2f', {in:[2],out:[1],compile:->"$out[0]=wrap_float($in[0]);"}
+  145: new root.Opcode 'i2b', {in:[1],out:[1],compile:->"$out[0]=truncate($in[0],8);"}
+  146: new root.Opcode 'i2c', {in:[1],out:[1],compile:->"$out[0]=truncate($in[0],8);"}
+  147: new root.Opcode 'i2s', {in:[1],out:[1],compile:->"$out[0]=truncate($in[0],16);"}
+  148: new root.Opcode 'lcmp', {in:[2,2],out:[1],compile:->"$out[0]=$in[0].compare($in[1]);"}
+  149: new root.Opcode 'fcmpl', {in:[1,1],out:[1],compile:->"var rv=util.cmp($in[0],$in[1]);$out[0]=rv===null ? -1 : rv;"}
+  150: new root.Opcode 'fcmpg', {in:[1,1],out:[1],compile:->"var rv=util.cmp($in[0],$in[1]);$out[0]=rv===null ? 1 : rv;"}
+  151: new root.Opcode 'dcmpl', {in:[2,2],out:[1],compile:->"var rv=util.cmp($in[0],$in[1]);$out[0]=rv===null ? -1 : rv;"}
+  152: new root.Opcode 'dcmpg', {in:[2,2],out:[1],compile:->"var rv=util.cmp($in[0],$in[1]);$out[0]=rv===null ? 1 : rv;"}
   153: new root.UnaryBranchOpcode 'ifeq', { cmp: (v) -> v == 0 }
   154: new root.UnaryBranchOpcode 'ifne', { cmp: (v) -> v != 0 }
   155: new root.UnaryBranchOpcode 'iflt', { cmp: (v) -> v < 0 }
@@ -481,24 +492,24 @@ root.opcodes = {
   177: new root.Opcode 'return', { execute: (rs) -> throw new ReturnException }
   178: new root.FieldOpcode 'getstatic', { compile:->
     @out = if @field_spec.type in ['J','D'] then [2] else [1]
-    "out0=rs.static_get(#{JSON.stringify @field_spec});" }
+    "$out[0]=rs.static_get(#{JSON.stringify @field_spec});" }
   179: new root.FieldOpcode 'putstatic', {compile:->
     @in = if @field_spec.type in ['J','D'] then [2] else [1]
-    "rs.static_put(#{JSON.stringify @field_spec}, in0);" }
+    "rs.static_put(#{JSON.stringify @field_spec}, $in[0]);" }
   180: new root.FieldOpcode 'getfield', {in:[1],compile:->
     @out = if @field_spec.type in 'JD' then [2] else [1]
-    "out0=rs.heap_get(#{JSON.stringify @field_spec},in0);"}
+    "$out[0]=rs.heap_get(#{JSON.stringify @field_spec},$in[0]);"}
   181: new root.FieldOpcode 'putfield', {compile:->
     @in = if @field_spec.type in ['J','D'] then [1,2] else [1,1]
-    "rs.heap_put(#{JSON.stringify @field_spec},in0,in1);"}
+    "rs.heap_put(#{JSON.stringify @field_spec},$in[0],$in[1]);"}
   182: new root.InvokeOpcode 'invokevirtual',  { execute: (rs)-> rs.method_lookup(@method_spec).run(rs,true)}
   183: new root.InvokeOpcode 'invokespecial',  { execute: (rs)-> rs.method_lookup(@method_spec).run(rs)}
   184: new root.InvokeOpcode 'invokestatic',   { execute: (rs)-> rs.method_lookup(@method_spec).run(rs)}
   185: new root.InvokeOpcode 'invokeinterface',{ execute: (rs)-> rs.method_lookup(@method_spec).run(rs,true)}
-  187: new root.ClassOpcode 'new', { execute: (rs) -> rs.push rs.init_object @class }
-  188: new root.NewArrayOpcode 'newarray', { execute: (rs) -> rs.push rs.heap_newarray @element_type, rs.pop() }
-  189: new root.ClassOpcode 'anewarray', { execute: (rs) -> rs.push rs.heap_newarray "L#{@class};", rs.pop() }
-  190: new root.Opcode 'arraylength', { execute: (rs) -> rs.push rs.get_obj(rs.pop()).array.length }
+  187: new root.ClassOpcode 'new', {out:[1],compile:->"$out[0]=rs.init_object('#{@class}')";}
+  188: new root.NewArrayOpcode 'newarray', {in:[1],out:[1],compile:->"$out[0]=rs.heap_newarray('#{@element_type}', $in[0]);"}
+  189: new root.ClassOpcode 'anewarray', {in:[1],out:[1],compile:->"$out[0]=rs.heap_newarray('L#{@class};', $in[0]);" }
+  190: new root.Opcode 'arraylength', {in:[1],out:[1],compile:->"$out[0]=rs.get_obj($in[0]).array.length;"}
   191: new root.Opcode 'athrow', { execute: (rs) -> throw new JavaException rs, rs.pop() }
   192: new root.ClassOpcode 'checkcast', { execute: (rs) ->
     o = rs.pop()
@@ -525,17 +536,17 @@ root.parse_cmd = (op) ->
   _in = op.in ? []
   _out = op.out ? []
   fn_args = ['rs']
-  prologue =
+  prologue = "var $in=[],$out=[];" +
     (for idx in [_in.length-1..0] by -1
       size = _in[idx]
-      if size == 1 then "var in#{idx} = rs.pop();"
-      else "var in#{idx} = rs.pop2();").join ''
+      if size == 1 then "$in[#{idx}] = rs.pop();"
+      else "$in[#{idx}] = rs.pop2();").join ''
   prologue += ("var out#{i};" for i in [0..._out.length] by 1).join ''
   cmd = (cmd.replace /@/g, 'this.') ? ''
   lines = cmd.split('\n')
   for idx in [0..._out.length] by 1
     size = _out[idx]
-    if size == 1 then lines.push "rs.push(out#{idx})"
-    else lines.push "rs.push(out#{idx}, null)"
+    if size == 1 then lines.push "rs.push($out[#{idx}])"
+    else lines.push "rs.push($out[#{idx}], null)"
   cmd = lines.join '\n'
   eval "(function (#{fn_args}) { #{prologue} #{cmd} })"
