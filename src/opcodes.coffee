@@ -400,45 +400,45 @@ root.opcodes = {
   90: new root.Opcode 'dup_x1', {in:[1,1],out:[1,1,1],cmd:"out1=in0;out0=out2=in1;"}
   91: new root.Opcode 'dup_x2', {in:[1,1,1],out:[1,1,1,1],cmd:"out0=out3=in2;out1=in0;out2=in1;"}
   92: new root.Opcode 'dup2', {in:[1,1],out:[1,1,1,1],cmd:"out0=out2=in0;out1=out3=in1;"}
-  93: new root.Opcode 'dup2_x1', {in:[1,1,1],out:[1,1,1,1,1],cmd:"out0=out3=in1;out1=out4=in2;out2=in0"}
+  93: new root.Opcode 'dup2_x1', {in:[1,1,1],out:[1,1,1,1,1],cmd:"out0=out3=in1;out1=out4=in2;out2=in0;"}
   94: new root.Opcode 'dup2_x2', {in:[1,1,1,1],out:[1,1,1,1,1,1],cmd:"out0=out4=in2;out1=out5=in3;out2=in0;out3=in1;"}
   95: new root.Opcode 'swap', {in:[1,1],out:[1,1],cmd:"out0=in1;out1=in0;"}
   96: new root.Opcode 'iadd', {in:[1,1],out:[1],cmd:'out0=wrap_int(in0+in1);'}
   97: new root.Opcode 'ladd', {in:[2,2],out:[2],cmd:'out0=in0.add(in1);'}
-  98: new root.Opcode 'fadd', {in:[1,1],out:[1],cmd:'out0=in0+in1;'}
+  98: new root.Opcode 'fadd', {in:[1,1],out:[1],cmd:'out0=wrap_float(in0+in1);'}
   99: new root.Opcode 'dadd', {in:[2,2],out:[2],cmd:'out0=in0+in1;'}
-  100: new root.Opcode 'isub', { execute: (rs) -> rs.push wrap_int(-rs.pop()+rs.pop()) }
-  101: new root.Opcode 'lsub', { execute: (rs) -> rs.push(rs.pop2().negate().add(rs.pop2()), null) }
-  102: new root.Opcode 'fsub', { execute: (rs) -> rs.push wrap_float(-rs.pop()+rs.pop()) }
-  103: new root.Opcode 'dsub', { execute: (rs) -> rs.push(-rs.pop2()+rs.pop2(), null) }
-  104: new root.Opcode 'imul', { execute: (rs) -> rs.push gLong.fromInt(rs.pop()).multiply(gLong.fromInt rs.pop()).toInt() }
-  105: new root.Opcode 'lmul', { execute: (rs) -> rs.push(rs.pop2().multiply(rs.pop2()), null) }
-  106: new root.Opcode 'fmul', { execute: (rs) -> rs.push wrap_float(rs.pop()*rs.pop()) }
-  107: new root.Opcode 'dmul', { execute: (rs) -> rs.push(rs.pop2()*rs.pop2(), null) }
-  108: new root.Opcode 'idiv', { execute: (rs) -> v=rs.pop();rs.push(int_div rs, rs.pop(), v) }
-  109: new root.Opcode 'ldiv', { execute: (rs) -> v=rs.pop2();rs.push(long_div(rs, rs.pop2(), v), null) }
-  110: new root.Opcode 'fdiv', { execute: (rs) -> v=rs.pop();rs.push wrap_float(rs.pop()/v) }
-  111: new root.Opcode 'ddiv', { execute: (rs) -> v=rs.pop2();rs.push(rs.pop2()/v, null) }
-  112: new root.Opcode 'irem', { execute: (rs) -> v2=rs.pop();  rs.push int_mod(rs,rs.pop(),v2) }
-  113: new root.Opcode 'lrem', { execute: (rs) -> v2=rs.pop2(); rs.push long_mod(rs,rs.pop2(),v2), null }
-  114: new root.Opcode 'frem', { execute: (rs) -> v2=rs.pop();  rs.push rs.pop() %v2 }
-  115: new root.Opcode 'drem', { execute: (rs) -> v2=rs.pop2(); rs.push rs.pop2()%v2, null }
-  116: new root.Opcode 'ineg', { execute: (rs) -> rs.push -rs.pop() }
-  117: new root.Opcode 'lneg', { execute: (rs) -> rs.push rs.pop2().negate(), null }
-  118: new root.Opcode 'fneg', { execute: (rs) -> rs.push -rs.pop() }
-  119: new root.Opcode 'dneg', { execute: (rs) -> rs.push -rs.pop2(), null }
-  120: new root.Opcode 'ishl', { execute: (rs) -> s=rs.pop()&0x1F; rs.push(rs.pop()<<s) }
-  121: new root.Opcode 'lshl', { execute: (rs) -> s=rs.pop()&0x3F; rs.push(rs.pop2().shiftLeft(gLong.fromInt(s)),null) }
-  122: new root.Opcode 'ishr', { execute: (rs) -> s=rs.pop()&0x1F; rs.push(rs.pop()>>s) }
-  123: new root.Opcode 'lshr', { execute: (rs) -> s=rs.pop()&0x3F; rs.push(rs.pop2().shiftRight(gLong.fromInt(s)), null) }
-  124: new root.Opcode 'iushr', { execute: (rs) -> s=rs.pop()&0x1F; rs.push(rs.pop()>>>s) }
-  125: new root.Opcode 'lushr', { execute: (rs) -> s=rs.pop()&0x3F; rs.push(rs.pop2().shiftRightUnsigned(gLong.fromInt(s)), null)}
-  126: new root.Opcode 'iand', { execute: (rs) -> rs.push(rs.pop()&rs.pop()) }
-  127: new root.Opcode 'land', { execute: (rs) -> rs.push(rs.pop2().and(rs.pop2()), null) }
-  128: new root.Opcode 'ior',  { execute: (rs) -> rs.push(rs.pop()|rs.pop()) }
-  129: new root.Opcode 'lor',  { execute: (rs) -> rs.push(rs.pop2().or(rs.pop2()), null) }
-  130: new root.Opcode 'ixor', { execute: (rs) -> rs.push(rs.pop()^rs.pop()) }
-  131: new root.Opcode 'lxor', { execute: (rs) -> rs.push(rs.pop2().xor(rs.pop2()), null) }
+  100: new root.Opcode 'isub', {in:[1,1],out:[1],cmd:"out0=wrap_int(in0-in1);"}
+  101: new root.Opcode 'lsub', {in:[2,2],out:[2],cmd:'out0=in0.add(in1.negate());'}
+  102: new root.Opcode 'fsub', {in:[1,1],out:[1],cmd:"out0=wrap_float(in0-in1);"}
+  103: new root.Opcode 'dsub', {in:[2,2],out:[2],cmd:"out0=in0-in1;"}
+  104: new root.Opcode 'imul', {in:[1,1],out:[1],cmd:"out0=gLong.fromInt(in0).multiply(gLong.fromInt(in1)).toInt();"}
+  105: new root.Opcode 'lmul', {in:[2,2],out:[2],cmd:"out0=in0.multiply(in1);"}
+  106: new root.Opcode 'fmul', {in:[1,1],out:[1],cmd:"out0=wrap_float(in0*in1);"}
+  107: new root.Opcode 'dmul', {in:[2,2],out:[2],cmd:"out0=in0*in1;"}
+  108: new root.Opcode 'idiv', {in:[1,1],out:[1],cmd:"out0=int_div(rs,in0,in1);"}
+  109: new root.Opcode 'ldiv', {in:[2,2],out:[2],cmd:"out0=long_div(rs,in0,in1);"}
+  110: new root.Opcode 'fdiv', {in:[1,1],out:[1],cmd:"out0=wrap_float(in0/in1);"}
+  111: new root.Opcode 'ddiv', {in:[2,2],out:[2],cmd:"out0=in0/in1;"}
+  112: new root.Opcode 'irem', {in:[1,1],out:[1],cmd:"out0=int_mod(rs,in0,in1);"}
+  113: new root.Opcode 'lrem', {in:[2,2],out:[2],cmd:"out0=long_mod(rs,in0,in1);"}
+  114: new root.Opcode 'frem', {in:[1,1],out:[1],cmd:"out0=in0%in1;"}
+  115: new root.Opcode 'drem', {in:[2,2],out:[2],cmd:"out0=in0%in1;"}
+  116: new root.Opcode 'ineg', {in:[1],out:[1],cmd:"out0=-in0;"}
+  117: new root.Opcode 'lneg', {in:[2],out:[2],cmd:"out0=in0.negate();"}
+  118: new root.Opcode 'fneg', {in:[1],out:[1],cmd:"out0=-in0;"}
+  119: new root.Opcode 'dneg', {in:[2],out:[2],cmd:"out0=-in0;"}
+  120: new root.Opcode 'ishl', {in:[1,1],out:[1],cmd:"out0=in0<<(in1&0x1F);"}
+  121: new root.Opcode 'lshl', {in:[2,1],out:[2],cmd:"out0=in0.shiftLeft(gLong.fromInt(in1&0x3F));"}
+  122: new root.Opcode 'ishr', {in:[1,1],out:[1],cmd:"out0=in0>>in1;"}
+  123: new root.Opcode 'lshr', {in:[2,1],out:[2],cmd:"out0=in0.shiftRight(gLong.fromInt(in1&0x3F));"}
+  124: new root.Opcode 'iushr', {in:[1,1],out:[1],cmd:"out0=in0>>>in1;"}
+  125: new root.Opcode 'lushr', {in:[2,1],out:[2],cmd:"out0=in0.shiftRightUnsigned(gLong.fromInt(in1&0x3F));"}
+  126: new root.Opcode 'iand', {in:[1,1],out:[1],cmd:"out0=in0&in1;"}
+  127: new root.Opcode 'land', {in:[2,2],out:[2],cmd:"out0=in0.and(in1);"}
+  128: new root.Opcode 'ior', {in:[1,1],out:[1],cmd:"out0=in0|in1;"}
+  129: new root.Opcode 'lor', {in:[2,2],out:[2],cmd:"out0=in0.or(in1);"}
+  130: new root.Opcode 'ixor', {in:[1,1],out:[1],cmd:"out0=in0^in1;"}
+  131: new root.Opcode 'lxor',{in:[2,2],out:[2],cmd:"out0=in0.xor(in1);"} 
   132: new root.IIncOpcode 'iinc'
   133: new root.Opcode 'i2l', { execute: (rs) -> rs.push gLong.fromNumber(rs.pop()), null }
   134: new root.Opcode 'i2f', { execute: (rs) -> }
