@@ -62,16 +62,17 @@ class root.LoadConstantOpcode extends root.Opcode
       if @constant.type is 'String'
         """
         var val = #{@constant.value};
-        $out[0] = rs.string_redirect(val, @cls);
+        $out[0] = rs.string_redirect(val, #{JSON.stringify @cls});
         """
       else if @constant.type is 'class'
         """
         var val = #{@constant.value};
-        var jvm_str = rs.get_obj(rs.string_redirect(val,@cls));
+        var jvm_str = rs.get_obj(rs.string_redirect(val,#{JSON.stringify @cls}));
         $out[0] = rs.class_lookup(c2t(rs.jvm2js_str(jvm_str)), true);
         """
       else if @constant.type is 'long'
-        "$out[0] = @constant.value;"
+        long = @constant.value
+        "$out[0] = gLong.fromBits(#{long.getLowBits()}, #{long.getHighBits()});"
       else
         "$out[0] = #{@constant.value};"
 
@@ -535,18 +536,17 @@ root.parse_cmd = (op) ->
   cmd = op.compile?() or ""
   _in = op.in ? []
   _out = op.out ? []
-  fn_args = ['rs']
   prologue = "var $in=[],$out=[];" +
     (for idx in [_in.length-1..0] by -1
       size = _in[idx]
       if size == 1 then "$in[#{idx}] = rs.pop();"
       else "$in[#{idx}] = rs.pop2();").join ''
-  prologue += ("var out#{i};" for i in [0..._out.length] by 1).join ''
-  cmd = (cmd.replace /@/g, 'this.') ? ''
   lines = cmd.split('\n')
   for idx in [0..._out.length] by 1
     size = _out[idx]
-    if size == 1 then lines.push "rs.push($out[#{idx}])"
-    else lines.push "rs.push($out[#{idx}], null)"
+    if size == 1 then lines.push "rs.push($out[#{idx}]);"
+    else lines.push "rs.push($out[#{idx}], null);"
   cmd = lines.join '\n'
-  eval "(function (#{fn_args}) { #{prologue} #{cmd} })"
+  prologue + cmd + "// #{op.name} \n"
+
+root.eval = (str) -> eval str

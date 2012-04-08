@@ -21,11 +21,11 @@ here_dir = "#{Dir.pwd}/#{File.dirname($0)}"
 test_dir = "#{here_dir}/../test"
 src = "#{test_dir}/#{cls}.java"
 name = src.match(/(\w+)\.java/)[1]
-Tempfile.open('disasm') do |f|
-  # compare disas output
-  `#{here_dir}/../console/disassembler.coffee #{test_dir}/#{name}.class >#{f.path()}`
-  exit if show_errors(name,'disasm',`#{here_dir}/cleandiff.sh #{test_dir}/#{name}.disasm #{f.path()}`)
-end
+#Tempfile.open('disasm') do |f|
+  ## compare disas output
+  #`#{here_dir}/../console/disassembler.coffee #{test_dir}/#{name}.class >#{f.path()}`
+  #exit if show_errors(name,'disasm',`#{here_dir}/cleandiff.sh #{test_dir}/#{name}.disasm #{f.path()}`)
+#end
 Tempfile.open('runtime') do |f|
   # compare runtime output
   `#{here_dir}/../console/runner.coffee #{cls} --log=error 2>&1 >#{f.path()}`

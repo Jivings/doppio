@@ -33,7 +33,8 @@ class Code
     return bytes_array
 
   parse_code: (bytes_array, constant_pool) ->
-    rv = {}
+    ops = {}
+    labels = { 0: true }
     while bytes_array.has_bytes()
       op_index = bytes_array.index
       c = bytes_array.get_uint 1
@@ -43,8 +44,30 @@ class Code
       throw "unknown opcode code: #{c}" unless opcodes.opcodes[c]?
       op = Object.create opcodes.opcodes[c]
       op.take_args bytes_array, constant_pool, wide
-      op.execute ?= opcodes.parse_cmd op
-      rv[op_index] = op
+      ops[op_index] = op
+      if op.offset?
+        labels[op.offset + op_index] = true
+
+    rv = {}
+    for idx in [0..op_index] by 1 when ops[idx]?
+      op = ops[idx]
+      if labels[idx] or op.execute? or idx == op_index
+        if total_byte_count > 0
+          rv[compiled_index] = {
+            name: 'aggregated'
+            execute: opcodes.eval "(function(rs) { #{cmds} })"
+            byte_count: total_byte_count - 1
+          }
+        cmds = ""
+        total_byte_count = 0
+        if op.execute?
+          compiled_index = idx + op.byte_count + 1
+          rv[idx] = op
+        else
+          compiled_index = idx
+      unless op.execute?
+        cmds += opcodes.parse_cmd op
+        total_byte_count += op.byte_count + 1
     return rv
 
   each_opcode: (fn) ->
